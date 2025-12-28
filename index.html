@@ -2,79 +2,52 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Europa Intelligence Map</title>
+<title>Europa Karte</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <style>
-html, body {
-  margin: 0; width: 100%; height: 100%; background: black; font-family: monospace; overflow: hidden;
-}
-#globeViz { width: 100vw; height: 100vh; }
+html, body { margin:0; padding:0; width:100%; height:100%; }
+#map { width: 100%; height: 100%; }
 
-/* SEARCH */
+/* Suchleiste */
 #searchBox {
-  position: absolute;
-  top: 15px;
-  left: 15px;
-  width: 300px;
-  z-index: 10;
-  color: cyan;
+  position: absolute; top: 15px; left: 15px; width: 300px; z-index: 1000;
+  color: black;
 }
 #searchBox input {
-  width: 100%;
-  padding: 6px;
-  background: black;
-  border: 1px solid cyan;
-  color: cyan;
+  width: 100%; padding: 6px; border: 1px solid cyan; background: black; color: cyan;
 }
 #results {
-  background: rgba(0,0,0,0.9);
-  border: 1px solid cyan;
-  max-height: 200px;
-  overflow-y: auto;
-  margin-top: 2px;
+  background: rgba(0,0,0,0.9); border: 1px solid cyan; max-height: 200px; overflow-y: auto;
+  margin-top: 2px; color: cyan;
 }
-.result {
-  padding: 6px;
-  border-bottom: 1px solid #222;
-  cursor: pointer;
-}
+.result { padding: 6px; cursor: pointer; border-bottom: 1px solid #222; }
 .result:hover { background: rgba(0,255,255,0.2); }
 
 /* HUD */
 #hud {
-  position: absolute;
-  top: 70px;
-  right: 20px;
-  width: 300px;
-  background: rgba(0,0,0,0.92);
-  border: 1px solid cyan;
-  padding: 12px;
-  color: cyan;
-  display: none;
-  z-index: 10;
+  position: absolute; top: 70px; right: 20px; width: 300px;
+  background: rgba(0,0,0,0.92); border: 1px solid cyan; padding:12px; color: cyan;
+  z-index: 1000; display: none;
 }
-#hud h3 { margin:0 0 10px; color: orange; text-align: center;}
-#hud input, #hud textarea {
-  width: 100%;
-  background: black; color: cyan; border: 1px solid cyan; margin-bottom: 6px; padding:4px;
-}
-#hud button { width: 100%; margin-top:4px; padding:6px; font-weight:bold;}
-#save { background: orange; border:none;}
-#delete { background: red; border:none; color:white;}
+#hud h3 { margin:0 0 10px; color: orange; text-align:center; }
+#hud input, #hud textarea { width:100%; margin-bottom:6px; padding:4px; border:1px solid cyan; background:black; color: cyan;}
+#hud button { width:100%; margin-top:4px; padding:6px; font-weight:bold;}
+#save { background: orange; border:none; }
+#delete { background: red; border:none; color:white; }
 </style>
 </head>
 <body>
 
-<div id="globeViz"></div>
+<div id="map"></div>
 
-<!-- SEARCH -->
 <div id="searchBox">
   <input id="searchInput" placeholder="Suche Name / Stadt / Land..." oninput="updateSearch()">
   <div id="results"></div>
 </div>
 
-<!-- HUD -->
 <div id="hud">
   <h3>SUBJECT</h3>
   <input id="nameInput" placeholder="Name">
@@ -85,11 +58,17 @@ html, body {
   <button id="delete">LÖSCHEN</button>
 </div>
 
-<script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
-<script src="https://unpkg.com/globe.gl@2.32.1/dist/globe.gl.min.js"></script>
-
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-// Elemente
+// Karte initialisieren
+const map = L.map('map').setView([50,10], 5); // Europa zentriert
+
+L.tileLayer('[https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png]https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+// HUD & Suchleiste Elemente
 const hud = document.getElementById("hud");
 const nameInput = document.getElementById("nameInput");
 const cityInput = document.getElementById("cityInput");
@@ -98,59 +77,70 @@ const infoInput = document.getElementById("infoInput");
 const searchInput = document.getElementById("searchInput");
 const resultsDiv = document.getElementById("results");
 
-// Daten
+// Marker Daten
 let people = JSON.parse(localStorage.getItem("people")) || [];
 let activeIndex = null;
-let currentLat = 50;   // Start Europa
-let currentLng = 10;
+let activeMarker = null;
 
-// Globus
-const globe = Globe()
-  .globeImageUrl("https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg")
-  .backgroundImageUrl("https://unpkg.com/three-globe/example/img/night-sky.png")
-  .pointsData(people)
-  .pointLat(d => d.lat)
-  .pointLng(d => d.lng)
-  .pointAltitude(0.06)
-  .pointRadius(0.8)      // kleiner / dünner
-  .pointColor(() => "#00ffff")
-  (document.getElementById("globeViz"));
+// Custom Pfeil-Icon
+const arrowIcon = L.icon({
+  iconUrl: 'https://cdn-icons-png.flaticon.com/512/60/60710.png', // Pfeil-Icon
+  iconSize: [25, 25],
+  iconAnchor: [12, 25]
+});
 
-// Kamera näher auf Europa
-globe.pointOfView({ lat: 50, lng: 10, altitude: 1.2 });
-globe.controls().autoRotate = true;
-globe.controls().autoRotateSpeed = 0.2;
+// Funktion zum Marker erstellen
+let markers = [];
+function addMarker(person, index){
+  const marker = L.marker([person.lat, person.lng], {icon: arrowIcon}).addTo(map);
+  marker.on('click', ()=>{ openHUD(person,index,marker); });
+  markers.push(marker);
+}
 
-// Klick auf Globus → neuen Marker
-globe.onGlobeClick(({lat,lng}) => {
-  currentLat = lat; currentLng = lng;
+// Alle Marker rendern
+function renderMarkers(){
+  markers.forEach(m=>map.removeLayer(m));
+  markers=[];
+  people.forEach((p,i)=>addMarker(p,i));
+}
+renderMarkers();
+
+// Klick auf Karte → neuen Marker
+map.on('click', e=>{
   activeIndex = null;
-  nameInput.value = ""; cityInput.value = ""; countryInput.value = ""; infoInput.value = "";
-  hud.style.display = "block";
+  activeMarker = null;
+  const lat = e.latlng.lat;
+  const lng = e.latlng.lng;
+  openHUD({name:"", city:"", country:"", info:"", lat, lng}, null, null);
 });
 
-// Klick auf Marker → HUD
-globe.onPointClick((d,i)=>{
-  activeIndex=i;
-  currentLat=d.lat; currentLng=d.lng;
-  nameInput.value=d.name; cityInput.value=d.city; countryInput.value=d.country; infoInput.value=d.info;
+// HUD öffnen
+function openHUD(person,index,marker){
+  activeIndex = index;
+  activeMarker = marker;
+  nameInput.value = person.name || "";
+  cityInput.value = person.city || "";
+  countryInput.value = person.country || "";
+  infoInput.value = person.info || "";
   hud.style.display="block";
-  globe.pointOfView({ lat:d.lat, lng:d.lng, altitude:1.0 }, 800);
-});
+}
 
 // Speichern / Bearbeiten
 document.getElementById("save").onclick = ()=>{
+  const lat = activeIndex!==null? people[activeIndex].lat : (activeMarker? activeMarker.getLatLng().lat : 0);
+  const lng = activeIndex!==null? people[activeIndex].lng : (activeMarker? activeMarker.getLatLng().lng : 0);
   if(!nameInput.value) return alert("Name fehlt");
   const data = {
-    lat: currentLat, lng: currentLng,
     name: nameInput.value,
     city: cityInput.value,
     country: countryInput.value,
-    info: infoInput.value
+    info: infoInput.value,
+    lat, lng
   };
-  if(activeIndex===null) people.push(data); else people[activeIndex]=data;
+  if(activeIndex!==null) people[activeIndex]=data;
+  else people.push(data);
   localStorage.setItem("people", JSON.stringify(people));
-  globe.pointsData(people);
+  renderMarkers();
   hud.style.display="none";
   updateSearch();
 };
@@ -160,27 +150,24 @@ document.getElementById("delete").onclick = ()=>{
   if(activeIndex===null) return;
   people.splice(activeIndex,1);
   localStorage.setItem("people", JSON.stringify(people));
-  globe.pointsData(people);
+  renderMarkers();
   hud.style.display="none";
   updateSearch();
 };
 
-// Suchfunktion
+// Suche
 function updateSearch(){
   const q = searchInput.value.toLowerCase();
-  resultsDiv.innerHTML = "";
+  resultsDiv.innerHTML="";
   if(!q) return;
   people.forEach((p,i)=>{
     if(p.name.toLowerCase().includes(q) || p.city.toLowerCase().includes(q) || p.country.toLowerCase().includes(q)){
       const div = document.createElement("div");
       div.className="result";
       div.innerHTML=`<b>${p.name}</b> | ${p.city}, ${p.country}`;
-      div.onclick=()=>{
-        activeIndex=i;
-        currentLat=p.lat; currentLng=p.lng;
-        globe.pointOfView({ lat:p.lat, lng:p.lng, altitude:1.0 },800);
-        hud.style.display="block";
-        nameInput.value=p.name; cityInput.value=p.city; countryInput.value=p.country; infoInput.value=p.info;
+      div.onclick = ()=>{
+        map.setView([p.lat,p.lng],8);
+        openHUD(p,i,markers[i]);
       };
       resultsDiv.appendChild(div);
     }
