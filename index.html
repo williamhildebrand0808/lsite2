@@ -8,8 +8,12 @@
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <style>
-html, body { margin:0; padding:0; width:100%; height:100%; }
-#map { width: 100%; height: 100%; }
+html, body, #map {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}
 
 /* Suchleiste */
 #searchBox {
@@ -62,7 +66,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; }
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
 // Karte initialisieren
-const map = L.map('map').setView([50,10], 5); // Europa zentriert
+const map = L.map('map').setView([50,10], 5); // Europa-zentriert
 L.tileLayer('[https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png]https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
@@ -168,6 +172,11 @@ function updateSearch(){
     }
   });
 }
+
+// Fix für graue Karte bei initialem Laden
+window.addEventListener('load', () => {
+    map.invalidateSize();
+});
 </script>
 
 </body>
