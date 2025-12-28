@@ -2,185 +2,167 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Europa Karte</title>
+<title>Personen-Datenbank</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<!-- Leaflet CSS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <style>
-html, body, #map {
-    height: 100%;
-    width: 100%;
+body {
+    font-family: Arial, sans-serif;
+    background-color: #111;
+    color: #0ff;
     margin: 0;
-    padding: 0;
+    padding: 20px;
 }
-
-/* Suchleiste */
-#searchBox {
-  position: absolute; top: 15px; left: 15px; width: 300px; z-index: 1000;
-  color: cyan;
+h1 { text-align:center; color: orange; }
+input, textarea, select, button {
+    display:block;
+    margin-bottom:10px;
+    padding:6px;
+    width: 100%;
+    max-width: 400px;
+    border:1px solid cyan;
+    background-color: black;
+    color: cyan;
 }
-#searchBox input {
-  width: 100%; padding: 6px; border: 1px solid cyan; background: black; color: cyan;
+button {
+    cursor:pointer;
 }
-#results {
-  background: rgba(0,0,0,0.9); border: 1px solid cyan; max-height: 200px; overflow-y: auto;
-  margin-top: 2px; color: cyan;
+#personForm { margin-bottom:30px; }
+.personCard {
+    border:1px solid cyan;
+    padding:10px;
+    margin-bottom:10px;
 }
-.result { padding: 6px; cursor: pointer; border-bottom: 1px solid #222; }
-.result:hover { background: rgba(0,255,255,0.2); }
-
-/* HUD */
-#hud {
-  position: absolute; top: 70px; right: 20px; width: 300px;
-  background: rgba(0,0,0,0.92); border: 1px solid cyan; padding:12px; color: cyan;
-  z-index: 1000; display: none;
-}
-#hud h3 { margin:0 0 10px; color: orange; text-align:center; }
-#hud input, #hud textarea { width:100%; margin-bottom:6px; padding:4px; border:1px solid cyan; background:black; color: cyan;}
-#hud button { width:100%; margin-top:4px; padding:6px; font-weight:bold;}
-#save { background: orange; border:none; }
-#delete { background: red; border:none; color:white;}
+.personCard h3 { margin:0 0 5px 0; color: orange; }
+.personCard button { width:auto; margin-right:5px; margin-top:5px; }
+#searchInput { width: 300px; }
 </style>
 </head>
 <body>
 
-<div id="map"></div>
+<h1>Personen-Datenbank</h1>
 
-<div id="searchBox">
-  <input id="searchInput" placeholder="Suche Name / Stadt / Land..." oninput="updateSearch()">
-  <div id="results"></div>
+<div id="personForm">
+    <h2>Person hinzufügen / bearbeiten</h2>
+    <input type="text" id="nameInput" placeholder="Name">
+    <input type="number" id="ageInput" placeholder="Alter">
+    <input type="text" id="cityInput" placeholder="Stadt">
+    <input type="text" id="countryInput" placeholder="Land">
+    <input type="text" id="instagramInput" placeholder="Instagram / Weitere Infos">
+    <button id="saveButton">Speichern</button>
 </div>
 
-<div id="hud">
-  <h3>SUBJECT</h3>
-  <input id="nameInput" placeholder="Name">
-  <input id="cityInput" placeholder="Stadt">
-  <input id="countryInput" placeholder="Land">
-  <textarea id="infoInput" placeholder="Info"></textarea>
-  <button id="save">SPEICHERN</button>
-  <button id="delete">LÖSCHEN</button>
+<div>
+    <input type="text" id="searchInput" placeholder="Suche nach Name, Stadt oder Land..." oninput="updateList()">
 </div>
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<div id="personList"></div>
+
 <script>
-// Karte initialisieren
-const map = L.map('map').setView([50,10], 5); // Europa-zentriert
+// Daten aus LocalStorage laden
+let people = JSON.parse(localStorage.getItem("people")) || [];
+let editIndex = null;
 
-// Tiles von Carto Light (schneller & zuverlässig)
-L.tileLayer('[https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png]https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-    subdomains: 'abcd',
-    maxZoom: 19
-}).addTo(map);
-
-// HUD & Suchleiste
-const hud = document.getElementById("hud");
 const nameInput = document.getElementById("nameInput");
+const ageInput = document.getElementById("ageInput");
 const cityInput = document.getElementById("cityInput");
 const countryInput = document.getElementById("countryInput");
-const infoInput = document.getElementById("infoInput");
+const instagramInput = document.getElementById("instagramInput");
+const saveButton = document.getElementById("saveButton");
+const personList = document.getElementById("personList");
 const searchInput = document.getElementById("searchInput");
-const resultsDiv = document.getElementById("results");
 
-// Marker Daten
-let people = JSON.parse(localStorage.getItem("people")) || [];
-let activeIndex = null;
-let activeMarker = null;
-
-// Pfeil-Icon für Marker
-const arrowIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/60/60710.png',
-  iconSize: [25,25],
-  iconAnchor: [12,25]
-});
-
-// Marker erstellen
-let markers = [];
-function addMarker(person, index){
-  const marker = L.marker([person.lat, person.lng], {icon: arrowIcon}).addTo(map);
-  marker.on('click', ()=>{ openHUD(person,index,marker); });
-  markers.push(marker);
-}
-function renderMarkers(){
-  markers.forEach(m=>map.removeLayer(m));
-  markers=[];
-  people.forEach((p,i)=>addMarker(p,i));
-}
-renderMarkers();
-
-// Klick auf Karte → neuen Marker
-map.on('click', e=>{
-  activeIndex = null;
-  activeMarker = null;
-  openHUD({name:"", city:"", country:"", info:"", lat:e.latlng.lat, lng:e.latlng.lng}, null, null);
-});
-
-// HUD öffnen
-function openHUD(person,index,marker){
-  activeIndex=index;
-  activeMarker=marker;
-  nameInput.value=person.name || "";
-  cityInput.value=person.city || "";
-  countryInput.value=person.country || "";
-  infoInput.value=person.info || "";
-  hud.style.display="block";
+// Funktion zum Anzeigen der Liste
+function renderList(){
+    personList.innerHTML = "";
+    people.forEach((p, i) => {
+        const div = document.createElement("div");
+        div.className = "personCard";
+        div.innerHTML = `<h3>${p.name}</h3>
+                         <p><b>Alter:</b> ${p.age || '-'}</p>
+                         <p><b>Stadt:</b> ${p.city || '-'}</p>
+                         <p><b>Land:</b> ${p.country || '-'}</p>
+                         <p><b>Info:</b> ${p.instagram || '-'}</p>
+                         <button onclick="editPerson(${i})">Bearbeiten</button>
+                         <button onclick="deletePerson(${i})">Löschen</button>`;
+        personList.appendChild(div);
+    });
 }
 
-// Speichern
-document.getElementById("save").onclick = ()=>{
-  const lat = activeIndex!==null? people[activeIndex].lat : (activeMarker? activeMarker.getLatLng().lat : 0);
-  const lng = activeIndex!==null? people[activeIndex].lng : (activeMarker? activeMarker.getLatLng().lng : 0);
-  if(!nameInput.value) return alert("Name fehlt");
-  const data = {
-    name: nameInput.value,
-    city: cityInput.value,
-    country: countryInput.value,
-    info: infoInput.value,
-    lat, lng
-  };
-  if(activeIndex!==null) people[activeIndex]=data;
-  else people.push(data);
-  localStorage.setItem("people", JSON.stringify(people));
-  renderMarkers();
-  hud.style.display="none";
-  updateSearch();
-};
+// Speichern / Hinzufügen
+saveButton.onclick = function(){
+    const person = {
+        name: nameInput.value.trim(),
+        age: ageInput.value.trim(),
+        city: cityInput.value.trim(),
+        country: countryInput.value.trim(),
+        instagram: instagramInput.value.trim()
+    };
+    if(!person.name) return alert("Name muss ausgefüllt sein!");
+    if(editIndex !== null){
+        people[editIndex] = person;
+        editIndex = null;
+    } else {
+        people.push(person);
+    }
+    localStorage.setItem("people", JSON.stringify(people));
+    clearForm();
+    renderList();
+    updateList();
+}
+
+// Formular leeren
+function clearForm(){
+    nameInput.value = "";
+    ageInput.value = "";
+    cityInput.value = "";
+    countryInput.value = "";
+    instagramInput.value = "";
+}
+
+// Bearbeiten
+function editPerson(i){
+    editIndex = i;
+    const p = people[i];
+    nameInput.value = p.name;
+    ageInput.value = p.age;
+    cityInput.value = p.city;
+    countryInput.value = p.country;
+    instagramInput.value = p.instagram;
+}
 
 // Löschen
-document.getElementById("delete").onclick = ()=>{
-  if(activeIndex===null) return;
-  people.splice(activeIndex,1);
-  localStorage.setItem("people", JSON.stringify(people));
-  renderMarkers();
-  hud.style.display="none";
-  updateSearch();
-};
-
-// Suchfunktion
-function updateSearch(){
-  const q = searchInput.value.toLowerCase();
-  resultsDiv.innerHTML="";
-  if(!q) return;
-  people.forEach((p,i)=>{
-    if(p.name.toLowerCase().includes(q) || p.city.toLowerCase().includes(q) || p.country.toLowerCase().includes(q)){
-      const div = document.createElement("div");
-      div.className="result";
-      div.innerHTML=`<b>${p.name}</b> | ${p.city}, ${p.country}`;
-      div.onclick = ()=>{
-        map.setView([p.lat,p.lng],8);
-        openHUD(p,i,markers[i]);
-      };
-      resultsDiv.appendChild(div);
+function deletePerson(i){
+    if(confirm("Willst du diese Person wirklich löschen?")){
+        people.splice(i,1);
+        localStorage.setItem("people", JSON.stringify(people));
+        renderList();
+        updateList();
     }
-  });
 }
 
-// Fix für graue Karte
-window.addEventListener('load', () => {
-    map.invalidateSize();
-});
+// Suche
+function updateList(){
+    const q = searchInput.value.toLowerCase();
+    personList.innerHTML = "";
+    people.forEach((p,i)=>{
+        if(p.name.toLowerCase().includes(q) || p.city.toLowerCase().includes(q) || p.country.toLowerCase().includes(q)){
+            const div = document.createElement("div");
+            div.className="personCard";
+            div.innerHTML = `<h3>${p.name}</h3>
+                             <p><b>Alter:</b> ${p.age || '-'}</p>
+                             <p><b>Stadt:</b> ${p.city || '-'}</p>
+                             <p><b>Land:</b> ${p.country || '-'}</p>
+                             <p><b>Info:</b> ${p.instagram || '-'}</p>
+                             <button onclick="editPerson(${i})">Bearbeiten</button>
+                             <button onclick="deletePerson(${i})">Löschen</button>`;
+            personList.appendChild(div);
+        }
+    });
+}
+
+// Initial render
+renderList();
+
 </script>
 
 </body>
