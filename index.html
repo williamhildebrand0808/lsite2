@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>3D Personen Globus</title>
+<title>Personen Globus</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -12,31 +12,198 @@ html, body {
   height: 100%;
   overflow: hidden;
   background: black;
+  font-family: "Courier New", monospace;
 }
-#globeViz {
-  width: 100vw;
-  height: 100vh;
+#globeViz { width: 100vw; height: 100vh; }
+
+/* SEARCH */
+#searchBox {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  width: 260px;
+  z-index: 10;
 }
+#searchBox input {
+  width: 100%;
+  padding: 8px;
+  background: black;
+  border: 1px solid orange;
+  color: orange;
+}
+#results {
+  background: rgba(0,0,0,0.9);
+  border: 1px solid orange;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.result {
+  padding: 6px;
+  border-bottom: 1px solid #333;
+  cursor: pointer;
+}
+.result:hover { background: rgba(255,165,0,0.2); }
+
+/* HUD */
+#profile {
+  position: absolute;
+  top: 70px;
+  right: 20px;
+  width: 300px;
+  background: rgba(0,0,0,0.92);
+  border: 1px solid #00ffcc;
+  padding: 15px;
+  color: #00ffcc;
+  display: none;
+  z-index: 10;
+  box-shadow: 0 0 20px rgba(0,255,204,0.4);
+}
+#profile h3 {
+  margin-top: 0;
+  text-align: center;
+  color: orange;
+}
+#profile input, #profile textarea {
+  width: 100%;
+  background: black;
+  border: 1px solid #00ffcc;
+  color: #00ffcc;
+  margin-bottom: 8px;
+  padding: 5px;
+}
+#profile button {
+  width: 100%;
+  padding: 8px;
+  margin-top: 4px;
+  font-weight: bold;
+  cursor: pointer;
+}
+#saveBtn { background: orange; border: none; }
+#deleteBtn { background: red; border: none; color: white; }
 </style>
 </head>
 <body>
 
 <div id="globeViz"></div>
 
-<!-- THREE.JS (MUSS ZUERST) -->
-<script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
+<!-- SEARCH -->
+<div id="searchBox">
+  <input id="searchInput" placeholder="Suche Name oder Stadt..." oninput="searchPeople()">
+  <div id="results"></div>
+</div>
 
-<!-- GLOBE.GL (danach) -->
+<!-- PROFILE -->
+<div id="profile">
+  <h3>SUBJECT PROFILE</h3>
+  <input id="name" placeholder="Name">
+  <input id="place" placeholder="Ort / Stadt">
+  <textarea id="info" placeholder="Infos"></textarea>
+  <button id="saveBtn" onclick="savePerson()">SPEICHERN</button>
+  <button id="deleteBtn" onclick="deletePerson()">LÖSCHEN</button>
+</div>
+
+<!-- LIBRARIES -->
+<script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
 <script src="https://unpkg.com/globe.gl@2.32.1/dist/globe.gl.min.js"></script>
 
 <script>
+let people = JSON.parse(localStorage.getItem("people")) || [];
+let currentLat = 0;
+let currentLng = 0;
+let activeIndex = null;
+
 const globe = Globe()
-  .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
-  .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
-  (document.getElementById('globeViz'));
+  .globeImageUrl("https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg")
+  .backgroundImageUrl("https://unpkg.com/three-globe/example/img/night-sky.png")
+  .pointsData(people)
+  .pointLat(d => d.lat)
+  .pointLng(d => d.lng)
+  .pointColor(() => "orange")
+  .pointRadius(0.6)
+  .pointAltitude(0.02)
+  (document.getElementById("globeViz"));
 
 globe.controls().autoRotate = true;
-globe.controls().autoRotateSpeed = 0.5;
+globe.controls().autoRotateSpeed = 0.4;
+
+/* Neuer Marker */
+globe.onGlobeClick(({ lat, lng }) => {
+  currentLat = lat;
+  currentLng = lng;
+  activeIndex = null;
+  openProfile({ name:"", place:"", info:"" });
+});
+
+/* Marker klicken */
+globe.onPointClick((d, i) => {
+  activeIndex = i;
+  currentLat = d.lat;
+  currentLng = d.lng;
+  openProfile(d);
+  globe.pointOfView({ lat:d.lat, lng:d.lng, altitude:1.5 }, 1000);
+});
+
+function openProfile(d) {
+  document.getElementById("profile").style.display = "block";
+  document.getElementById("name").value = d.name || "";
+  document.getElementById("place").value = d.place || "";
+  document.getElementById("info").value = d.info || "";
+}
+
+/* Speichern / Bearbeiten */
+function savePerson() {
+  const name = nameInput.value;
+  if (!name) return alert("Name fehlt");
+
+  const data = {
+    lat: currentLat,
+    lng: currentLng,
+    name,
+    place: place.value,
+    info: info.value
+  };
+
+  if (activeIndex !== null) {
+    people[activeIndex] = data;
+  } else {
+    people.push(data);
+  }
+
+  update();
+}
+
+/* Löschen */
+function deletePerson() {
+  if (activeIndex === null) return;
+  if (!confirm("Profil wirklich löschen?")) return;
+  people.splice(activeIndex, 1);
+  update();
+  document.getElementById("profile").style.display = "none";
+}
+
+function update() {
+  localStorage.setItem("people", JSON.stringify(people));
+  globe.pointsData(people);
+  document.getElementById("profile").style.display = "none";
+  searchPeople();
+}
+
+/* Suche */
+function searchPeople() {
+  const q = searchInput.value.toLowerCase();
+  results.innerHTML = "";
+  if (!q) return;
+
+  people.forEach((p,i) => {
+    if (p.name.toLowerCase().includes(q) || p.place.toLowerCase().includes(q)) {
+      const div = document.createElement("div");
+      div.className = "result";
+      div.innerHTML = `<b>${p.name}</b><br><small>${p.place}</small>`;
+      div.onclick = () => globe.onPointClick()(p,i);
+      results.appendChild(div);
+    }
+  });
+}
 </script>
 
 </body>
