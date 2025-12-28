@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>3D Personen Globus</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
 html, body {
   margin: 0;
@@ -22,9 +23,11 @@ html, body {
 
 <div id="globeViz"></div>
 
-<!-- Libraries -->
-<script src="https://unpkg.com/three/build/three.min.js"></script>
-<script src="https://unpkg.com/globe.gl"></script>
+<!-- THREE.JS (MUSS ZUERST) -->
+<script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
+
+<!-- GLOBE.GL (danach) -->
+<script src="https://unpkg.com/globe.gl@2.32.1/dist/globe.gl.min.js"></script>
 
 <script>
 const globe = Globe()
@@ -33,7 +36,7 @@ const globe = Globe()
   (document.getElementById('globeViz'));
 
 globe.controls().autoRotate = true;
-globe.controls().autoRotateSpeed = 0.4;
+globe.controls().autoRotateSpeed = 0.5;
 </script>
 
 </body>
