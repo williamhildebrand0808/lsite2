@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Personen Globus</title>
+<title>World Intelligence Map</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -12,20 +12,38 @@ html, body {
   height: 100%;
   background: black;
   overflow: hidden;
-  font-family: Courier New, monospace;
+  font-family: "Courier New", monospace;
 }
 #globeViz { width:100vw; height:100vh; }
 
+/* SEARCH */
+#searchBox {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  width: 260px;
+  z-index: 10;
+}
+#searchBox input {
+  width: 100%;
+  padding: 8px;
+  background: black;
+  border: 1px solid cyan;
+  color: cyan;
+}
+
+/* HUD */
 #hud {
   position: absolute;
-  top: 20px;
+  top: 70px;
   right: 20px;
-  width: 280px;
-  background: rgba(0,0,0,0.9);
-  border: 1px solid #00ffcc;
+  width: 300px;
+  background: rgba(0,0,0,0.92);
+  border: 1px solid cyan;
   padding: 12px;
-  color: #00ffcc;
+  color: cyan;
   display: none;
+  z-index: 10;
 }
 #hud h3 {
   margin: 0 0 10px;
@@ -35,15 +53,15 @@ html, body {
 #hud input, #hud textarea {
   width: 100%;
   background: black;
-  color: #00ffcc;
-  border: 1px solid #00ffcc;
+  color: cyan;
+  border: 1px solid cyan;
   margin-bottom: 6px;
-  padding: 4px;
+  padding: 5px;
 }
 #hud button {
   width: 100%;
-  margin-top: 4px;
-  padding: 6px;
+  margin-top: 6px;
+  padding: 8px;
   font-weight: bold;
 }
 #save { background: orange; border: none; }
@@ -54,10 +72,17 @@ html, body {
 
 <div id="globeViz"></div>
 
+<!-- SEARCH (immer sichtbar) -->
+<div id="searchBox">
+  <input placeholder="Suche Name oder Stadt (kommt gleich)">
+</div>
+
+<!-- HUD -->
 <div id="hud">
   <h3>SUBJECT</h3>
   <input id="nameInput" placeholder="Name">
-  <input id="placeInput" placeholder="Ort">
+  <input id="cityInput" placeholder="Stadt">
+  <input id="countryInput" placeholder="Land">
   <textarea id="infoInput" placeholder="Info"></textarea>
   <button id="save">SPEICHERN</button>
   <button id="delete">LÖSCHEN</button>
@@ -69,7 +94,8 @@ html, body {
 <script>
 const hud = document.getElementById("hud");
 const nameInput = document.getElementById("nameInput");
-const placeInput = document.getElementById("placeInput");
+const cityInput = document.getElementById("cityInput");
+const countryInput = document.getElementById("countryInput");
 const infoInput = document.getElementById("infoInput");
 
 let people = JSON.parse(localStorage.getItem("people")) || [];
@@ -83,34 +109,43 @@ const globe = Globe()
   .pointsData(people)
   .pointLat(d => d.lat)
   .pointLng(d => d.lng)
-  .pointRadius(0.6)
-  .pointColor(() => "orange")
-  .pointAltitude(0.02)
+  .pointRadius(1.2)          // 🔵 GROẞE MARKER
+  .pointAltitude(0.08)       // 📍 stehen sichtbar ab
+  .pointColor(() => "#00ffff")
   (document.getElementById("globeViz"));
 
-globe.controls().autoRotate = true;
-globe.controls().autoRotateSpeed = 0.4;
+// Kamera näher ran
+globe.pointOfView({ altitude: 1.6 });
 
+globe.controls().autoRotate = true;
+globe.controls().autoRotateSpeed = 0.25;
+
+// Neuer Marker
 globe.onGlobeClick(({lat, lng}) => {
   currentLat = lat;
   currentLng = lng;
   activeIndex = null;
   nameInput.value = "";
-  placeInput.value = "";
+  cityInput.value = "";
+  countryInput.value = "";
   infoInput.value = "";
   hud.style.display = "block";
 });
 
+// Marker anklicken
 globe.onPointClick((d, i) => {
   activeIndex = i;
   currentLat = d.lat;
   currentLng = d.lng;
   nameInput.value = d.name;
-  placeInput.value = d.place;
+  cityInput.value = d.city;
+  countryInput.value = d.country;
   infoInput.value = d.info;
   hud.style.display = "block";
+  globe.pointOfView({ lat:d.lat, lng:d.lng, altitude:1.2 }, 800);
 });
 
+// Speichern
 document.getElementById("save").onclick = () => {
   if (!nameInput.value) return alert("Name fehlt");
 
@@ -118,7 +153,8 @@ document.getElementById("save").onclick = () => {
     lat: currentLat,
     lng: currentLng,
     name: nameInput.value,
-    place: placeInput.value,
+    city: cityInput.value,
+    country: countryInput.value,
     info: infoInput.value
   };
 
@@ -130,6 +166,7 @@ document.getElementById("save").onclick = () => {
   hud.style.display = "none";
 };
 
+// Löschen
 document.getElementById("delete").onclick = () => {
   if (activeIndex === null) return;
   people.splice(activeIndex, 1);
