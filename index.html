@@ -14,7 +14,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; }
 /* Suchleiste */
 #searchBox {
   position: absolute; top: 15px; left: 15px; width: 300px; z-index: 1000;
-  color: black;
+  color: cyan;
 }
 #searchBox input {
   width: 100%; padding: 6px; border: 1px solid cyan; background: black; color: cyan;
@@ -36,7 +36,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; }
 #hud input, #hud textarea { width:100%; margin-bottom:6px; padding:4px; border:1px solid cyan; background:black; color: cyan;}
 #hud button { width:100%; margin-top:4px; padding:6px; font-weight:bold;}
 #save { background: orange; border:none; }
-#delete { background: red; border:none; color:white; }
+#delete { background: red; border:none; color:white;}
 </style>
 </head>
 <body>
@@ -63,12 +63,11 @@ html, body { margin:0; padding:0; width:100%; height:100%; }
 <script>
 // Karte initialisieren
 const map = L.map('map').setView([50,10], 5); // Europa zentriert
-
 L.tileLayer('[https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png]https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-// HUD & Suchleiste Elemente
+// HUD & Suchleiste
 const hud = document.getElementById("hud");
 const nameInput = document.getElementById("nameInput");
 const cityInput = document.getElementById("cityInput");
@@ -82,22 +81,20 @@ let people = JSON.parse(localStorage.getItem("people")) || [];
 let activeIndex = null;
 let activeMarker = null;
 
-// Custom Pfeil-Icon
+// Pfeil-Icon für Marker
 const arrowIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/60/60710.png', // Pfeil-Icon
-  iconSize: [25, 25],
-  iconAnchor: [12, 25]
+  iconUrl: 'https://cdn-icons-png.flaticon.com/512/60/60710.png',
+  iconSize: [25,25],
+  iconAnchor: [12,25]
 });
 
-// Funktion zum Marker erstellen
+// Marker erstellen
 let markers = [];
 function addMarker(person, index){
   const marker = L.marker([person.lat, person.lng], {icon: arrowIcon}).addTo(map);
   marker.on('click', ()=>{ openHUD(person,index,marker); });
   markers.push(marker);
 }
-
-// Alle Marker rendern
 function renderMarkers(){
   markers.forEach(m=>map.removeLayer(m));
   markers=[];
@@ -109,23 +106,21 @@ renderMarkers();
 map.on('click', e=>{
   activeIndex = null;
   activeMarker = null;
-  const lat = e.latlng.lat;
-  const lng = e.latlng.lng;
-  openHUD({name:"", city:"", country:"", info:"", lat, lng}, null, null);
+  openHUD({name:"", city:"", country:"", info:"", lat:e.latlng.lat, lng:e.latlng.lng}, null, null);
 });
 
 // HUD öffnen
 function openHUD(person,index,marker){
-  activeIndex = index;
-  activeMarker = marker;
-  nameInput.value = person.name || "";
-  cityInput.value = person.city || "";
-  countryInput.value = person.country || "";
-  infoInput.value = person.info || "";
+  activeIndex=index;
+  activeMarker=marker;
+  nameInput.value=person.name || "";
+  cityInput.value=person.city || "";
+  countryInput.value=person.country || "";
+  infoInput.value=person.info || "";
   hud.style.display="block";
 }
 
-// Speichern / Bearbeiten
+// Speichern
 document.getElementById("save").onclick = ()=>{
   const lat = activeIndex!==null? people[activeIndex].lat : (activeMarker? activeMarker.getLatLng().lat : 0);
   const lng = activeIndex!==null? people[activeIndex].lng : (activeMarker? activeMarker.getLatLng().lng : 0);
@@ -155,7 +150,7 @@ document.getElementById("delete").onclick = ()=>{
   updateSearch();
 };
 
-// Suche
+// Suchfunktion
 function updateSearch(){
   const q = searchInput.value.toLowerCase();
   resultsDiv.innerHTML="";
