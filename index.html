@@ -67,8 +67,12 @@ html, body, #map {
 <script>
 // Karte initialisieren
 const map = L.map('map').setView([50,10], 5); // Europa-zentriert
-L.tileLayer('[https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png]https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-  attribution: '&copy; OpenStreetMap contributors'
+
+// Tiles von Carto Light (schneller & zuverlässig)
+L.tileLayer('[https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png]https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
 }).addTo(map);
 
 // HUD & Suchleiste
@@ -173,7 +177,7 @@ function updateSearch(){
   });
 }
 
-// Fix für graue Karte bei initialem Laden
+// Fix für graue Karte
 window.addEventListener('load', () => {
     map.invalidateSize();
 });
