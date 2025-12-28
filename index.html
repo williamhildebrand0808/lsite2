@@ -4,165 +4,167 @@
 <meta charset="UTF-8">
 <title>Personen-Datenbank</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
 body {
     font-family: Arial, sans-serif;
-    background-color: #111;
-    color: #0ff;
-    margin: 0;
-    padding: 20px;
+    background:#111;
+    color:#0ff;
+    padding:20px;
 }
-h1 { text-align:center; color: orange; }
-input, textarea, select, button {
-    display:block;
+h1 { text-align:center; color:orange; }
+
+input, button {
+    width:100%;
+    max-width:400px;
     margin-bottom:10px;
-    padding:6px;
-    width: 100%;
-    max-width: 400px;
+    padding:7px;
+    background:black;
     border:1px solid cyan;
-    background-color: black;
-    color: cyan;
+    color:cyan;
 }
+
 button {
     cursor:pointer;
 }
-#personForm { margin-bottom:30px; }
+button:hover {
+    background:cyan;
+    color:black;
+}
+
 .personCard {
     border:1px solid cyan;
     padding:10px;
     margin-bottom:10px;
 }
-.personCard h3 { margin:0 0 5px 0; color: orange; }
-.personCard button { width:auto; margin-right:5px; margin-top:5px; }
-#searchInput { width: 300px; }
+.personCard h3 {
+    color:orange;
+    margin:0 0 5px;
+}
+
+.actions button {
+    width:auto;
+    margin-right:5px;
+}
 </style>
 </head>
+
 <body>
 
 <h1>Personen-Datenbank</h1>
 
-<div id="personForm">
-    <h2>Person hinzufügen / bearbeiten</h2>
-    <input type="text" id="nameInput" placeholder="Name">
-    <input type="number" id="ageInput" placeholder="Alter">
-    <input type="text" id="cityInput" placeholder="Stadt">
-    <input type="text" id="countryInput" placeholder="Land">
-    <input type="text" id="instagramInput" placeholder="Instagram / Weitere Infos">
-    <button id="saveButton">Speichern</button>
-</div>
+<h2>Person hinzufügen / bearbeiten</h2>
+<input id="name" placeholder="Name">
+<input id="age" type="number" placeholder="Alter">
+<input id="city" placeholder="Stadt">
+<input id="country" placeholder="Land">
+<input id="info" placeholder="Instagram / Info">
+<button id="saveBtn">Speichern</button>
 
-<div>
-    <input type="text" id="searchInput" placeholder="Suche nach Name, Stadt oder Land..." oninput="updateList()">
-</div>
+<hr>
 
-<div id="personList"></div>
+<input id="search" placeholder="Suche..." style="max-width:300px">
+
+<div id="list"></div>
 
 <script>
-// Daten aus LocalStorage laden
+/* =======================
+   DATEN & HILFSFUNKTIONEN
+======================= */
 let people = JSON.parse(localStorage.getItem("people")) || [];
 let editIndex = null;
 
-const nameInput = document.getElementById("nameInput");
-const ageInput = document.getElementById("ageInput");
-const cityInput = document.getElementById("cityInput");
-const countryInput = document.getElementById("countryInput");
-const instagramInput = document.getElementById("instagramInput");
-const saveButton = document.getElementById("saveButton");
-const personList = document.getElementById("personList");
-const searchInput = document.getElementById("searchInput");
+const $ = id => document.getElementById(id);
 
-// Funktion zum Anzeigen der Liste
-function renderList(){
-    personList.innerHTML = "";
-    people.forEach((p, i) => {
+function saveStorage() {
+    localStorage.setItem("people", JSON.stringify(people));
+}
+
+function clearForm() {
+    ["name","age","city","country","info"].forEach(id => $(id).value = "");
+    editIndex = null;
+}
+
+/* =======================
+   RENDER & FILTER
+======================= */
+function render() {
+    const q = $("search").value.toLowerCase();
+    $("list").innerHTML = "";
+
+    people
+    .filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        p.city.toLowerCase().includes(q) ||
+        p.country.toLowerCase().includes(q) ||
+        p.info.toLowerCase().includes(q)
+    )
+    .forEach((p,i) => {
         const div = document.createElement("div");
         div.className = "personCard";
-        div.innerHTML = `<h3>${p.name}</h3>
-                         <p><b>Alter:</b> ${p.age || '-'}</p>
-                         <p><b>Stadt:</b> ${p.city || '-'}</p>
-                         <p><b>Land:</b> ${p.country || '-'}</p>
-                         <p><b>Info:</b> ${p.instagram || '-'}</p>
-                         <button onclick="editPerson(${i})">Bearbeiten</button>
-                         <button onclick="deletePerson(${i})">Löschen</button>`;
-        personList.appendChild(div);
+        div.innerHTML = `
+            <h3>${p.name}</h3>
+            <p><b>Alter:</b> ${p.age ?? "-"}</p>
+            <p><b>Stadt:</b> ${p.city || "-"}</p>
+            <p><b>Land:</b> ${p.country || "-"}</p>
+            <p><b>Info:</b> ${p.info || "-"}</p>
+            <div class="actions">
+                <button onclick="edit(${i})">Bearbeiten</button>
+                <button onclick="removePerson(${i})">Löschen</button>
+            </div>
+        `;
+        $("list").appendChild(div);
     });
 }
 
-// Speichern / Hinzufügen
-saveButton.onclick = function(){
+/* =======================
+   CRUD
+======================= */
+$("saveBtn").onclick = () => {
     const person = {
-        name: nameInput.value.trim(),
-        age: ageInput.value.trim(),
-        city: cityInput.value.trim(),
-        country: countryInput.value.trim(),
-        instagram: instagramInput.value.trim()
+        name: $("name").value.trim(),
+        age: $("age").value ? Number($("age").value) : null,
+        city: $("city").value.trim(),
+        country: $("country").value.trim(),
+        info: $("info").value.trim()
     };
-    if(!person.name) return alert("Name muss ausgefüllt sein!");
-    if(editIndex !== null){
-        people[editIndex] = person;
-        editIndex = null;
-    } else {
-        people.push(person);
-    }
-    localStorage.setItem("people", JSON.stringify(people));
+
+    if(!person.name) return alert("Name fehlt!");
+
+    editIndex === null ? people.push(person) : people[editIndex] = person;
+
+    saveStorage();
     clearForm();
-    renderList();
-    updateList();
-}
+    render();
+};
 
-// Formular leeren
-function clearForm(){
-    nameInput.value = "";
-    ageInput.value = "";
-    cityInput.value = "";
-    countryInput.value = "";
-    instagramInput.value = "";
-}
-
-// Bearbeiten
-function editPerson(i){
-    editIndex = i;
+function edit(i) {
     const p = people[i];
-    nameInput.value = p.name;
-    ageInput.value = p.age;
-    cityInput.value = p.city;
-    countryInput.value = p.country;
-    instagramInput.value = p.instagram;
+    $("name").value = p.name;
+    $("age").value = p.age ?? "";
+    $("city").value = p.city;
+    $("country").value = p.country;
+    $("info").value = p.info;
+    editIndex = i;
 }
 
-// Löschen
-function deletePerson(i){
-    if(confirm("Willst du diese Person wirklich löschen?")){
+function removePerson(i) {
+    if(confirm("Person wirklich löschen?")) {
         people.splice(i,1);
-        localStorage.setItem("people", JSON.stringify(people));
-        renderList();
-        updateList();
+        saveStorage();
+        render();
     }
 }
 
-// Suche
-function updateList(){
-    const q = searchInput.value.toLowerCase();
-    personList.innerHTML = "";
-    people.forEach((p,i)=>{
-        if(p.name.toLowerCase().includes(q) || p.city.toLowerCase().includes(q) || p.country.toLowerCase().includes(q)){
-            const div = document.createElement("div");
-            div.className="personCard";
-            div.innerHTML = `<h3>${p.name}</h3>
-                             <p><b>Alter:</b> ${p.age || '-'}</p>
-                             <p><b>Stadt:</b> ${p.city || '-'}</p>
-                             <p><b>Land:</b> ${p.country || '-'}</p>
-                             <p><b>Info:</b> ${p.instagram || '-'}</p>
-                             <button onclick="editPerson(${i})">Bearbeiten</button>
-                             <button onclick="deletePerson(${i})">Löschen</button>`;
-            personList.appendChild(div);
-        }
-    });
-}
+/* =======================
+   EVENTS
+======================= */
+$("search").oninput = render;
 
-// Initial render
-renderList();
-
+/* =======================
+   INIT
+======================= */
+render();
 </script>
 
 </body>
